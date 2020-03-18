@@ -9,6 +9,8 @@ import (
 	"errors"
 	"math/rand"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
@@ -16,6 +18,11 @@ const (
 	setAlphaNum = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	setAlpha    = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	setNum      = "0123456789"
+)
+
+var (
+	seedMu = sync.Mutex{}
+	seed   = time.Now().UnixNano()
 )
 
 /*
@@ -26,8 +33,7 @@ token will have a length of 172 bytes/characters.
 Returns an error if it could not read all 128 bytes.
 */
 func Crypto128() (string, error) {
-	bb := make([]byte, 128)
-	return cryptoGen(bb)
+	return cryptoGen(128)
 }
 
 /*
@@ -38,11 +44,11 @@ token will have a length of 344 bytes/characters.
 Returns an error if it could not read all 256 bytes.
 */
 func Crypto256() (string, error) {
-	bb := make([]byte, 256)
-	return cryptoGen(bb)
+	return cryptoGen(256)
 }
 
-func cryptoGen(bb []byte) (string, error) {
+func cryptoGen(n int) (string, error) {
+	bb := make([]byte, n)
 	_, err := crypto.Read(bb)
 	if err != nil {
 		return "", err
@@ -97,7 +103,7 @@ functions instead.
 Base64 generates a pseudo-random base 64 string containing
 length number of characters. The character set used is A-Z,
 a-z, 0-9, hyphen, and underscore. No padding characters are
-used.
+used and it is URL-safe.
 
 Returns an error if n is negative.
 */
@@ -116,8 +122,9 @@ length is measured in characters, not bytes.
 Returns an error if length is negative or if charSet is an
 empty string.
 
-    // s below will be something like "球界火陽地界妻水"
+    // s will be something like "球界火陽地界妻水"
     s, _ := FromCharSet(8, "世界地球風火災水稲妻太陽")
+
 */
 func FromCharSet(length int, charSet string) (string, error) {
 
@@ -137,9 +144,14 @@ func FromCharSet(length int, charSet string) (string, error) {
 		return "", errors.New("charSet is less than two characters.")
 	}
 
+	seedMu.Lock()
+	seed++
+	seedMu.Unlock()
+	r := rand.New(rand.NewSource(seed))
+
 	var s string
 	for i := 0; i < length; i++ {
-		s += set[rand.Intn(len(set))]
+		s += set[r.Intn(len(set))]
 	}
 
 	return s, nil
